@@ -10,7 +10,7 @@ KEYS := .local/keys
 export POSTGRES_HOST POSTGRES_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD LOG_LEVEL COLLECTOR_PORT COLLECTOR_URL COLLECTOR_TOKEN \
        REGISTRY RUNBOOK_BASE COSIGN_PASSWORD
 
-.PHONY: help install up db down run demo-services demo-unsigned simulate dora dora-sample trace deployments catalog audit \
+.PHONY: help install up db down run evidence demo-services demo-unsigned simulate dora dora-sample trace deployments catalog audit \
         lint format test test-integration test-e2e check audit-deps workflows collector stop-collector clean
 
 help: ## list the targets
@@ -52,8 +52,15 @@ stop-collector:
 
 # The whole lesson: three services for three teams, each to production through its own pipeline (signed, verified);
 # an unsigned image refused; a simulated month; the four metrics per service and per week; one lead time traced.
-run: up demo-services demo-unsigned simulate dora ## the whole golden path, then a simulated month and the DORA tables
+run: up demo-services demo-unsigned evidence simulate dora ## the whole golden path, then a simulated month and the DORA tables
 	$(VENV)/bin/goldenpath trace orders orders-c1
+
+# What the pipelines recorded for the three real services, before the simulation replaces the store (step 4 and 5).
+evidence: $(STAMP) ## every production deployment of each demo service with its commits, and one lead time traced
+	@for service in orders billing search; do echo "$$service:"; $(VENV)/bin/goldenpath deployments $$service; done
+	@first=$$(git -C .local/services/orders rev-list --max-parents=0 --abbrev-commit HEAD); \
+	  $(VENV)/bin/goldenpath trace orders $$first
+	$(VENV)/bin/goldenpath metrics
 
 demo-services: $(STAMP) ## generate orders, billing and search and take each to production (about 3 minutes each)
 	@for pair in orders:team-orders billing:team-billing search:team-search; do \
