@@ -2,23 +2,28 @@
 
 ## What it is
 
-import-linter checks the **import graph** of a Python project against rules ("contracts") you write. The import graph says which module imports which. `lint-imports` reads the contracts from `pyproject.toml` and fails when an import breaks one. Pinned: 2.15 (it uses `grimp` to build the graph).
+Large programs get messy when any part may use any other part. A common discipline is **layering**: the code is arranged in layers, and a layer may use only the layers below it. The innermost layer holds the rules of the problem and knows nothing about databases, files, networks or screens.
+
+**import-linter** checks such rules automatically. It reads the `import` lines of every module ([python.md](python.md)) to build a map of "which module uses which", called the **import graph**, and compares it with rules ("contracts") that you write in `pyproject.toml`. The command is `lint-imports`. This repository pins import-linter 2.15, which uses a library called `grimp` to build the graph. Two kinds of contract are used:
+
+- A **layers** contract lists modules from top to bottom. A module may import from layers below it, never from layers above.
+- A **forbidden** contract says that certain *source* modules must never import certain *forbidden* modules, even indirectly through other modules.
 
 ## Why this repository uses it
 
-The platform is built in four layers: `interfaces → infrastructure → application → domain`. The domain holds the delivery rules and the DORA maths, and must not know about databases, files, HTTP or subprocesses. That is easy to break with one stray import, so the architecture is a check, not just a diagram.
+The platform has four layers, `interfaces → infrastructure → application → domain`. The domain holds the delivery maths and the golden-path rules, and must know nothing about databases, YAML, HTTP or programs. That is what lets the metrics and the contract be tested in a fraction of a second with no Docker and no network. One stray `import psycopg` in the domain would break that quietly; the contracts turn the architecture into a check that runs in `make lint`.
 
 ## Where it appears
 
 | Path | Use |
 |---|---|
-| `pyproject.toml` `[tool.importlinter]` | Two contracts. |
-| `Makefile`, target `lint` | `$(VENV)/bin/lint-imports`. |
+| `pyproject.toml` lines 71 to 89 | The settings and two contracts. |
+| `Makefile` `lint` | Runs `lint-imports`. |
 | `ARCHITECTURE.md` | The same layers in words. |
 
 ## How it works underneath
 
-`grimp` reads every module's `import` statements and builds a directed graph. A **layers** contract lists modules top to bottom: a higher layer may import a lower one, never the reverse. A **forbidden** contract says some source modules must never reach some forbidden modules, even indirectly through other modules.
+`grimp` reads every module's `import` statements and builds a directed graph (arrows from the importer to the imported). A *layers* contract checks no arrow goes from a lower layer up to a higher one. A *forbidden* contract searches the graph for any path, direct or through other modules, from a source module to a forbidden one. `include_external_packages = true` lets the contracts name modules that are not part of the project, such as the standard library's `subprocess` or the third-party `psycopg`. The tool never runs your code.
 
 ## Walkthrough of this repository's use
 
@@ -27,25 +32,34 @@ The platform is built in four layers: `interfaces → infrastructure → applica
 root_packages = ["goldenpath"]
 include_external_packages = true
 ```
-One package is analysed. `include_external_packages` lets a contract name third-party and standard-library modules.
+
+- `[tool.importlinter]` is the tool's own table. `root_packages = ["goldenpath"]` names the one package to analyse. `include_external_packages = true` lets contracts name modules that are not part of the project (`psycopg`, `yaml`, `subprocess`, `http`, `urllib`).
 
 ```toml
 [[tool.importlinter.contracts]]
 name = "Layers: interfaces -> infrastructure -> application -> domain, never upward"
 type = "layers"
-layers = ["goldenpath.interfaces", "goldenpath.infrastructure", "goldenpath.application", "goldenpath.domain"]
+layers = [
+    "goldenpath.interfaces",
+    "goldenpath.infrastructure",
+    "goldenpath.application",
+    "goldenpath.domain",
+]
 ```
-`domain` imports nothing from the other three; `application` imports only `domain`.
+
+- **Contract 1**, "Layers: interfaces -> infrastructure -> application -> domain, never upward". `[[tool.importlinter.contracts]]` (double brackets) adds one contract to a list. `name` is shown in the report; `type = "layers"`; `layers` lists the layers from top to bottom. `interfaces` may import from the three below it; `infrastructure` may import from `application` and `domain`; `application` only from `domain`; `domain` from none of them.
 
 ```toml
+[[tool.importlinter.contracts]]
 name = "Domain and application know nothing about PostgreSQL, YAML, HTTP or subprocesses"
 type = "forbidden"
 source_modules = ["goldenpath.domain", "goldenpath.application"]
 forbidden_modules = ["psycopg", "yaml", "subprocess", "http", "urllib"]
 ```
-The two inner layers use only the standard library's pure parts. `domain/metrics.py` computes from `Event` objects; `application/ports.py` only declares `Protocol` classes. The code that talks to PostgreSQL, YAML, HTTP and `git` lives in `infrastructure/` and `interfaces/`.
 
-This is why the tests of the metrics (`tests/unit/domain`) need no database, no network and no Docker, and run in a fraction of a second.
+- **Contract 2**, "Domain and application know nothing about PostgreSQL, YAML, HTTP or subprocesses". `type = "forbidden"`: `source_modules` are `goldenpath.domain` and `goldenpath.application`; `forbidden_modules` are `psycopg`, `yaml`, `subprocess`, `http` and `urllib`. None of them may be imported by the two inner layers, directly or through another module. That is why `application/ports.py` only declares `Protocol`s, `domain/metrics.py` works on `Event` objects, and everything that touches a database, a file format, a web request or a program lives in `infrastructure/` and `interfaces/`.
+
+`make lint` runs `lint-imports`; with two contracts it ends with `Contracts: 2 kept, 0 broken.`
 
 ## Try it yourself
 

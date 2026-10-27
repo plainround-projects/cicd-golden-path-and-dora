@@ -2,56 +2,136 @@
 
 ## What it is
 
-psycopg is the Python library ("driver") that talks to PostgreSQL: it opens a network connection, sends SQL, and turns the answers into Python values. Version 3 is a rewrite of `psycopg2`. Pinned: `psycopg==3.3.6` with `psycopg-binary==3.3.6` (precompiled, so no compiler is needed).
+PostgreSQL is a separate program ([postgresql.md](postgresql.md)). For a Python program to use it, something must open a network connection to the server, send SQL text, wait for the answer and turn the answer into Python values. That "something" is a **driver**, and the driver for PostgreSQL is **psycopg** (this is version 3, a rewrite of the older `psycopg2`). It is a **third-party library**: code written by other people that you install, as opposed to the standard library that ships with Python.
+
+This repository pins `psycopg==3.3.6` and `psycopg-binary==3.3.6` in the lock files. The second package contains the pre-compiled C part of the driver, so no compiler is needed to install it. The project's `pyproject.toml` asks for `psycopg[binary]>=3.2,<4`: the square brackets request the optional "binary" extra, and the range means version 3.2 up to but not including 4.
+
+Ideas used below:
+
+- A **connection** is one open conversation with the server. Opening one takes time, so some programs keep a pool of them; this service is small and simply opens a short-lived connection per call.
+- A **cursor** is an object that runs a statement and holds its result.
+- **Parameters**: values passed separately from the SQL text. The driver sends the text and the values on different paths, so a value can never be read as SQL ([sql.md](sql.md)).
+- A **transaction** ([postgresql.md](postgresql.md)): psycopg opens one automatically with the first statement. Using the connection in a `with` block commits at the end if no error happened, and rolls back if one did.
 
 ## Why this repository uses it
 
-The event store is PostgreSQL ([postgresql.md](postgresql.md)). `PostgresEventStore` is the adapter that implements the `EventStore` port with psycopg. It is the only module in the platform that imports `psycopg`; the import-linter contract forbids it anywhere in the inner layers ([import-linter.md](import-linter.md)).
+The event store is PostgreSQL ([postgresql.md](postgresql.md)), and `PostgresEventStore` is the adapter that implements the `EventStore` port with psycopg. It is the only module in the platform that imports `psycopg`; an import-linter contract forbids it in the inner layers ([import-linter.md](import-linter.md)). The integration tests use psycopg too, for clean-up.
 
 ## Where it appears
 
 | Path | Use |
 |---|---|
 | `src/goldenpath/infrastructure/postgres_store.py` | `append`, `all`, `clear`. |
-| `tests/integration/conftest.py`, `test_postgres_store_and_sql.py` | Live-database tests, cleaning up their rows. |
-| `requirements.lock` | The pinned, hashed version. |
+| `tests/integration/conftest.py` | The `store` fixture and its clean-up. |
+| `tests/integration/test_postgres_store_and_sql.py` | The store, the collector and the SQL queries against a live database. |
+| `pyproject.toml` | `dependencies = ["psycopg[binary]>=3.2,<4", "pyyaml>=6"]`. |
+| `requirements.lock` | `psycopg==3.3.6` and `psycopg-binary==3.3.6` with hashes. |
 
 ## How it works underneath
 
-`psycopg.connect(dsn)` opens a TCP connection and returns a **Connection**. `connection.execute(sql, params)` sends the statement and the parameters **separately**; the server fills the placeholders, so a value can never be read as SQL. Used as `with conn:`, the connection **commits** when the block ends normally, **rolls back** if an exception leaves it, and then closes. A `cursor` is an object that runs statements and holds the result; `cursor.rowcount` says how many rows the last statement changed.
+`psycopg.connect(dsn)` opens a TCP connection to the host and port in the connection string, logs in with the user and password, and returns a `Connection`. `connection.execute(sql, params)` sends the statement and the parameters separately; the server fills in the placeholders. Python values are converted both ways: a `datetime` with a time zone becomes `timestamptz`, `bool` becomes `boolean`, `int` becomes `integer`, and result columns come back as Python values inside **tuples** (fixed-size groups). Errors are exception classes: a failure to connect raises `psycopg.OperationalError`; a row that breaks a `CHECK` rule raises `psycopg.errors.CheckViolation`.
 
 ## Walkthrough of this repository's use
 
 ```python
-def _connect(self) -> psycopg.Connection[tuple[Any, ...]]:
-    return psycopg.connect(self._dsn, connect_timeout=_CONNECT_TIMEOUT_SECONDS)
+"""The `EventStore` port on PostgreSQL (sql/001_schema.sql creates the table)."""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+from typing import Any
+
+import psycopg
+
+from goldenpath.domain.events import Event, EventType
+
+_CONNECT_TIMEOUT_SECONDS = 60
+
+
+class PostgresEventStore:
+    """Opens a short-lived connection per call. A duplicate event (same service, type, ref and time) is ignored."""
+
+    def __init__(self, dsn: str) -> None:
+        """`dsn` is a libpq connection URI."""
+        self._dsn = dsn
+
+    def _connect(self) -> psycopg.Connection[tuple[Any, ...]]:
+        return psycopg.connect(self._dsn, connect_timeout=_CONNECT_TIMEOUT_SECONDS)
 ```
-A short-lived connection per call. `connect_timeout=60` is generous on purpose: a loaded laptop can take many seconds to accept a connection. The DSN comes from `Settings.dsn` ([dotenv.md](dotenv.md)).
+
+- **Line 1**: docstring. **Line 5**: `Iterable` is the type hint for "something you can loop over"; **line 8**: `import psycopg`. **Line 12**: `_CONNECT_TIMEOUT_SECONDS = 60`, generous on purpose: a loaded laptop can take many seconds to accept a connection.
+- **Lines 15 to 20**: the class stores the connection string `dsn` ("data source name": `postgresql://user:password@host:port/db`, built by `Settings.dsn`, [dotenv.md](dotenv.md)). **Lines 22 to 23**, `_connect`: `psycopg.connect(self._dsn, connect_timeout=...)` opens a connection; the return type `psycopg.Connection[tuple[Any, ...]]` says result rows come back as tuples.
 
 ```python
-def append(self, events: Iterable[Event]) -> int:
-    inserted = 0
-    with self._connect() as connection, connection.cursor() as cursor:
-        for event in events:
-            cursor.execute(
-                "INSERT INTO events (ts, service, type, ref, detail) "
-                "VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
-                (event.ts, event.service, event.type.value, event.ref, event.detail),
-            )
-            inserted += cursor.rowcount
-    return inserted
+    def append(self, events: Iterable[Event]) -> int:
+        """Insert events; return how many were new."""
+        inserted = 0
+        with self._connect() as connection, connection.cursor() as cursor:
+            for event in events:
+                cursor.execute(
+                    "INSERT INTO events (ts, service, type, ref, detail) "
+                    "VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
+                    (event.ts, event.service, event.type.value, event.ref, event.detail),
+                )
+                inserted += cursor.rowcount
+        return inserted
+
+    def all(self) -> list[Event]:
+        """Every event, oldest first."""
+        with self._connect() as connection:
+            rows = connection.execute("SELECT ts, service, type, ref, detail FROM events ORDER BY ts, id").fetchall()
+        return [Event(ts, service, EventType(kind), ref, detail) for ts, service, kind, ref, detail in rows]
+
+    def clear(self) -> None:
+        """Delete every event."""
+        with self._connect() as connection:
+            connection.execute("TRUNCATE events")
 ```
-One transaction for the whole batch: all the events are stored or none are. `ON CONFLICT DO NOTHING` ignores an event that is already there (the table has `UNIQUE (service, type, ref, ts)`), and `rowcount` is 0 for it, so the return value counts only the **new** events. `event.ts` is a timezone-aware `datetime`, which psycopg maps to `timestamptz`.
+
+- **Lines 25 to 36**, `append(events)`: `with self._connect() as connection, connection.cursor() as cursor:` opens the connection and a cursor (the object that runs statements) in one `with`. When the block ends normally the work is **committed** (made permanent); if an error leaves it, it is **rolled back** (undone); then the connection is closed. For each event `cursor.execute(statement, values)` sends the statement and the five values separately. `event.type.value` is the text of the enumeration member; `event.ts` is a time-zone-aware `datetime`, which psycopg stores as `timestamptz`. The whole batch is one **transaction**: all events are stored or none are. `inserted += cursor.rowcount` counts only new rows, so the return value is how many events were new.
+- **Lines 38 to 42**, `all`: `connection.execute("SELECT ... ORDER BY ts, id").fetchall()` returns a list of tuples. The list comprehension `[Event(ts, service, EventType(kind), ref, detail) for ts, service, kind, ref, detail in rows]` unpacks each tuple into five names and builds a validated `Event` again.
+- **Lines 44 to 47**, `clear`: `connection.execute("TRUNCATE events")` (the simulation starts from an empty store).
+
+### The integration tests
 
 ```python
-rows = connection.execute("SELECT ts, service, type, ref, detail FROM events ORDER BY ts, id").fetchall()
-return [Event(ts, service, EventType(kind), ref, detail) for ts, service, kind, ref, detail in rows]
+"""Integration tests need PostgreSQL from docker-compose.yml: `make up` first."""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+
+import psycopg
+import pytest
+
+from goldenpath.infrastructure.postgres_store import PostgresEventStore
+from goldenpath.infrastructure.settings import Settings
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    for item in items:
+        item.add_marker(pytest.mark.integration)
+
+
+@pytest.fixture(scope="session")
+def settings() -> Settings:
+    return Settings.from_env()
+
+
+@pytest.fixture
+def store(settings: Settings) -> Iterator[PostgresEventStore]:
+    """A store whose rows for the test services are removed before and after, so tests never see each other's data."""
+    cleanup(settings)
+    yield PostgresEventStore(settings.dsn)
+    cleanup(settings)
+
+
+def cleanup(settings: Settings) -> None:
+    with psycopg.connect(settings.dsn) as connection:
+        connection.execute("DELETE FROM events WHERE service LIKE 'it-%'")
 ```
-`fetchall()` returns a list of tuples; each becomes an `Event` again, which validates it a second time. `ORDER BY ts, id` makes the order stable for equal times.
 
-`clear()` runs `TRUNCATE events`: delete every row (the simulation starts from an empty store).
-
-The integration tests use the `store` fixture, which deletes rows whose service starts with `it-` before and after each test.
+`settings` is built once (`scope="session"`); `store` calls `cleanup(settings)` before and after each test, and `cleanup` opens its own connection with `psycopg.connect(settings.dsn)` and runs `DELETE FROM events WHERE service LIKE 'it-%'`, removing every row whose service name starts with `it-` ([pytest.md](pytest.md)).
 
 ## Try it yourself
 

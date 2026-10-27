@@ -2,7 +2,13 @@
 
 ## What it is
 
-JSON is a text format for data made of objects (`{"key": value}`), arrays (`[1, 2]`), strings, numbers, `true`, `false` and `null`. Almost every web API speaks it. Python's `json` module converts between JSON text and dicts, lists, strings, numbers, booleans and `None`.
+**JSON** ("JavaScript Object Notation") is a text format for data, used by almost every web service and many tools. It has:
+
+- **objects**: `{"name": "value", "count": 3}`, a set of key/value pairs where keys are text in double quotes;
+- **arrays**: `[1, 2, 3]`, ordered lists;
+- **strings** in double quotes, **numbers**, `true`, `false` and `null`.
+
+Python's `json` module converts between JSON text and Python values: `json.loads(text)` turns text into dictionaries, lists, strings, numbers, booleans and `None`; `json.dumps(value)` turns them back into text (`indent=2` makes it readable). JSON has no dates and no tuples: a `datetime` must be converted to text first.
 
 ## Why this repository uses it
 
@@ -12,16 +18,16 @@ JSON is the common language between the pieces: the pipeline's shell scripts sen
 
 | Path | Use |
 |---|---|
-| `template/scripts/emit-event.sh` | Builds the event body with `printf` and reads the identity token reply. |
+| `template/scripts/emit-event.sh` | Builds the event body with `printf`; reads the identity-token reply. |
 | `src/goldenpath/interfaces/collector.py` | `json.loads` the request, `json.dumps` the reply. |
 | `src/goldenpath/infrastructure/collector_client.py` | `json.dumps` the events, `json.loads` the reply. |
 | `template/Makefile` (`attest`) | Writes `.build/provenance.json`. |
-| `template/protection.json` | The branch-protection payload for `main`. |
+| `template/protection.json` | The branch-protection body for `main`. |
 | `src/goldenpath/infrastructure/auditor.py` | `json.loads` of `protection.json`, checked by `rules.check_protection`. |
 
 ## How it works underneath
 
-`json.loads(text)` parses text into Python objects; `json.dumps(obj)` writes them back. Only dicts with string keys, lists, strings, numbers, booleans and `None` round-trip; a `datetime` must be converted first (the client sends `event.ts.isoformat()`).
+`json.dumps({"ok": True, "none": None})` produces `{"ok": true, "none": null}`. Python's `True` becomes `true`, `None` becomes `null`. A JSON object's keys are always text. Parsing fails with an error if the text is not valid JSON (single quotes, a trailing comma and comments are not allowed).
 
 ## Walkthrough of this repository's use
 
@@ -30,21 +36,47 @@ JSON is the common language between the pieces: the pipeline's shell scripts sen
 ```json
 {"service": "orders", "type": "deploy", "ref": "orders-d1:a1+a2", "detail": ""}
 ```
-No `ts`: the collector stamps the event with its own clock. The collector accepts one object or a list of them.
+
+Built by `emit-event.sh`: `payload=$(printf '{"service": "%s", "type": "%s", "ref": "%s", "detail": "%s"}' "$SERVICE_NAME" "$type" "$ref" "$detail")` ([bash-and-sh.md](bash-and-sh.md)). There is **no `ts`**: the collector adds its own time. The Python client builds the same shape (with `ts` as text from `event.ts.isoformat()`) in `collector_client.py` lines 30 to 41.
+
+### In the collector
 
 ```python
-payload = json.loads(self.rfile.read(length))
-items = payload if isinstance(payload, list) else [payload]
+        def _accept(self) -> None:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= MAX_BODY_BYTES:
+                self._reply(413 if length else 400, {"error": f"body must be 1 to {MAX_BODY_BYTES} bytes"})
+                return
+            try:
+                payload = json.loads(self.rfile.read(length))
+                items = payload if isinstance(payload, list) else [payload]
+                events = [event_from_json(item, now()) for item in items]
+            except (json.JSONDecodeError, InvalidEventError, TypeError, AttributeError) as error:
+                self._reply(400, {"error": str(error)})
+                return
+            try:
+                accepted = record(sink, events)
+            except (
+                Exception
+            ):  # the store is down or slow: say so, so the pipeline step can retry; never crash the handler
+                self._reply(503, {"error": "the event store is unavailable, try again"})
+                return
+            self._reply(202, {"accepted": accepted, "received": len(events)})
 ```
-Normalise to a list, then build and validate each `Event`. A parse error, a wrong type or a missing key becomes a `400` with the reason ([http-server.md](http-server.md)).
+
+- `payload = json.loads(self.rfile.read(length))` reads exactly `length` bytes of the request and parses them; `items = payload if isinstance(payload, list) else [payload]` accepts one object or a list; each becomes a validated `Event`. `except (json.JSONDecodeError, InvalidEventError, TypeError, AttributeError)` turns broken JSON or a wrong shape into a `400` with a message. Replies are built with `json.dumps(payload) + "\n"` and encoded to bytes ([http-server.md](http-server.md)).
 
 ### The provenance statement
 
 ```make
-@printf '{"builder": "%s", "repository": "%s", "commit": "%s", "built_at": "%s"}\n' \
-  "$${GITHUB_WORKFLOW:-local}" "$(NAME)" "$$(git rev-parse HEAD)" "$$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .build/provenance.json
+# A provenance statement: which commit and which build produced the digest.
+attest:
+	@printf '{"builder": "%s", "repository": "%s", "commit": "%s", "built_at": "%s"}\n' \
+	  "$${GITHUB_WORKFLOW:-local}" "$(NAME)" "$$(git rev-parse HEAD)" "$$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .build/provenance.json
+	cosign attest --yes --type custom --predicate .build/provenance.json $(KEY_FLAGS) $(IMAGE)@$$(cat $(DIGEST_FILE))
 ```
-Four fields: which workflow built it (`local` on a laptop), which repository, which commit, when (UTC, ISO 8601). `cosign attest` signs this document as the image's attestation ([cosign.md](cosign.md)).
+
+`printf '{"builder": "%s", "repository": "%s", "commit": "%s", "built_at": "%s"}\n' ... > .build/provenance.json` writes four fields: which workflow built it (`${GITHUB_WORKFLOW:-local}`: the workflow's name or `local`), the repository (`$(NAME)`), the full commit (`$(git rev-parse HEAD)`) and the UTC time (`date -u +%Y-%m-%dT%H:%M:%SZ`). `cosign attest` signs this file as the image's attestation ([cosign.md](cosign.md)).
 
 ### Branch protection
 
@@ -58,7 +90,8 @@ Four fields: which workflow built it (`local` on a laptop), which repository, wh
   "allow_deletions": false
 }
 ```
-The body GitHub's branch-protection API expects. `strict: true` means the branch must be up to date. `enforce_admins: true` applies the rules to owners too. `restrictions: null` means no extra restriction on who may push (the pull-request rule already prevents direct pushes). The audit (`check_protection`) fails if a required check, `strict`, administrators or a pull-request requirement is missing.
+
+The body GitHub's branch-protection API expects. `required_status_checks` is an object: `strict: true` means the branch must be up to date with `main` before merging, and `contexts` lists the job names that must pass (`lint`, `test`, `release`). `enforce_admins: true` applies the rules to owners too. `required_pull_request_reviews` requires a pull request and one approval. `restrictions: null` means no extra limit on who may push (the pull-request rule already prevents direct pushes). `allow_force_pushes: false` and `allow_deletions: false` protect the history. The audit parses this file with `json.loads` and `rules.check_protection` fails if a required check, `strict`, administrators or a pull-request requirement is missing ([github-actions.md](github-actions.md)).
 
 ## Try it yourself
 

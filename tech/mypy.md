@@ -2,23 +2,28 @@
 
 ## What it is
 
-mypy is a **static type checker** for Python: it reads your code without running it and uses the type hints (`def f(x: int) -> str`) to find mistakes such as passing text where a number is expected, or forgetting that a value can be `None`. Pinned: 2.4.0.
+Python lets you pass anything to anything and finds out at run time, when something fails. A **type hint** is a note on a name, a parameter or a result saying what kind of value belongs there: `limit: int`, `-> list[JobRecord]`. A **type checker** is a program that reads those notes *without running the program* and reports places where they contradict each other: you passed text where a number is expected; you used a value that might be `None` as if it were never `None`; you called a method that the object does not have.
+
+**mypy** is the most widely used type checker for Python. This repository pins mypy 2.4.0. Python itself ignores type hints when the program runs; they are for mypy, for editors and for the reader.
+
+Useful words: `X | None` means "an X, or the special value `None`" (a value that means "nothing"). A **Protocol** is a list of methods that an object must have; mypy accepts any object that has them, without inheritance. **Strict mode** switches on all of mypy's optional checks.
 
 ## Why this repository uses it
 
-Part of the platform is a set of **contracts** between layers: ports (`EventSink`, `EventStore`, `Catalog`, `Repositories`, `Auditor`, `TemplateRenderer`) and the adapters that implement them. mypy checks that every adapter really has the methods its port promises, and that `Optional` values are handled. The run is in **strict mode**.
+The platform is built around **ports**: lists of methods that a use case needs (`EventSink`, `EventStore`, `Catalog`, `Repositories`, `Auditor`, `TemplateRenderer`) and **adapters** that provide them (PostgreSQL, CSV, files, Git, HTTP). mypy checks that every adapter really has the methods its port promises, and that "may be absent" values are handled. It runs in **strict mode**.
 
 ## Where it appears
 
 | Path | Use |
 |---|---|
-| `pyproject.toml` `[tool.mypy]` | `strict = true`, `files = ["src", "tests"]`. |
-| `Makefile`, target `lint` | `$(VENV)/bin/mypy` with no arguments. |
-| `src/goldenpath/application/ports.py` | The `Protocol` classes mypy checks adapters against. |
+| `pyproject.toml` lines 44 to 53 | The settings. |
+| `Makefile` `lint` | Runs `mypy` with no arguments. |
+| `src/goldenpath/application/ports.py` | The `Protocol` classes adapters are checked against. |
+| `src/`, `tests/` | Both are checked; `template/` is not (it holds placeholders). |
 
 ## How it works underneath
 
-mypy builds a model of every function's input and output types and checks each call and assignment. It knows that `str | None` may be `None`, so using it as a `str` is an error until you check. For a `Protocol`, an object matches if it has the right methods; no inheritance is needed. Libraries without hints need a stub package (`types-PyYAML` here).
+mypy parses every file, builds a model of each function's input and output types, and then checks every call and assignment against it. It follows `if x is not None:` checks to know that inside the `if` the value is not `None`. For a `Protocol` it compares method names and signatures. Libraries without hints need a *stub package* of hints: `types-PyYAML` is the stub package for `pyyaml`.
 
 ## Walkthrough of this repository's use
 
@@ -34,29 +39,16 @@ disallow_untyped_defs = false
 disallow_incomplete_defs = false
 disallow_untyped_calls = false
 ```
-`strict = true` turns on all the optional checks: every function annotated, no silent `Any`, warnings for unused `# type: ignore`. The override relaxes only the test modules so test functions stay short. `[[...]]` is a TOML list of tables ([toml.md](toml.md)). `template/` is not listed in `files`, so mypy never sees placeholder files.
 
-### What it checks here
+- **Line 44**: `[tool.mypy]`. **Line 45**: `python_version = "3.12"`. **Line 46**: `strict = true` switches on every optional strictness check: all functions must have type hints on every parameter and the result; calling an untyped function from typed code is an error; returning `Any` from a typed function is a warning; an unused `# type: ignore` comment is an error. **Line 47**: `files = ["src", "tests"]`.
+- **Lines 49 to 53**: `[[tool.mypy.overrides]]` for `module = ["tests.*"]` turns three strict checks off (`disallow_untyped_defs`, `disallow_incomplete_defs`, `disallow_untyped_calls`) so test functions need no hints, which keeps them short; the code under test stays strictly checked.
 
-```python
-class EventSink(Protocol):
-    def append(self, events: Iterable[Event]) -> int: ...
-class EventStore(EventSink, Protocol):
-    def all(self) -> list[Event]: ...
-    def clear(self) -> None: ...
-```
-`PostgresEventStore` and `CsvEventStore` implement `append`, `all` and `clear`; `CollectorEventSink` implements only `append`. The CLI can pass the collector sink where an `EventSink` is needed, but mypy would reject passing it where an `EventStore` is needed (it lacks `all`). The use case `record(sink, events)` is typed against the small port.
+### What strictness checks in this code
 
-```python
-median_lead_time_hours: float | None
-```
-`ServiceMetrics` says plainly that a service may have no lead time yet. A caller that formats the value must handle `None`; `interfaces/render.py` does.
-
-```python
-def _median(values: Sequence[float]) -> float | None:
-    return statistics.median(values) if values else None
-```
-The `if values else None` handles the empty list, which `statistics.median` would reject.
+- `EventSink` and `EventStore` (in `ports.py`) are `Protocol`s: `EventSink` has `append(events: Iterable[Event]) -> int`, and `EventStore` adds `all() -> list[Event]` and `clear() -> None`. `PostgresEventStore` and `CsvEventStore` have all three methods, so they can be used wherever an `EventStore` is needed. `CollectorEventSink` has only `append`, so it can be used where an `EventSink` is needed (a pipeline recording events) but mypy would reject it where an `EventStore` is needed. The use case `record(sink, events)` is typed against the smaller port, so it works with all three.
+- `ServiceMetrics.median_lead_time_hours: float | None` says a service may have no lead time yet; every caller must handle `None`, as `render.py` does with `_fmt` (`"n/a" if value is None else ...`) and the tests do with a helper `known(value)` that asserts the value is not `None`.
+- `Settings.from_env(cls, environ: Mapping[str, str] | None = None, need_database: bool = True) -> Settings`: `Mapping` is a read-only dictionary-like type, so the function promises not to change what it is given.
+- `def collector_server(port: int, sink: EventSink, token: str, clock: Any = None) -> ThreadingHTTPServer`: the `Any` for `clock` means "anything"; it is the one place where a test may pass a function.
 
 ## Try it yourself
 
