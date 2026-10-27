@@ -41,6 +41,7 @@ Built by `emit-event.sh`: `payload=$(printf '{"service": "%s", "type": "%s", "re
 
 ### In the collector
 
+<!-- fmt:off -->
 ```python
         def _accept(self) -> None:
             length = int(self.headers.get("Content-Length", "0"))
@@ -63,6 +64,7 @@ Built by `emit-event.sh`: `payload=$(printf '{"service": "%s", "type": "%s", "re
                 return
             self._reply(202, {"accepted": accepted, "received": len(events)})
 ```
+<!-- fmt:on -->
 
 - `payload = json.loads(self.rfile.read(length))` reads exactly `length` bytes of the request and parses them; `items = payload if isinstance(payload, list) else [payload]` accepts one object or a list; each becomes a validated `Event`. `except (json.JSONDecodeError, InvalidEventError, TypeError, AttributeError)` turns broken JSON or a wrong shape into a `400` with a message. Replies are built with `json.dumps(payload) + "\n"` and encoded to bytes ([http-server.md](http-server.md)).
 

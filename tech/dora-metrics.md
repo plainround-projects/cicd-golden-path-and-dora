@@ -94,6 +94,7 @@ The extra columns keep the numbers honest: **batch** is the median number of com
 
 ### Lead time, in code
 
+<!-- fmt:off -->
 ```python
 def lead_times(events: Iterable[Event], service: str) -> list[LeadTime]:
     """Every commit of `service` that reached a deployment, with its lead time."""
@@ -107,11 +108,13 @@ def lead_times(events: Iterable[Event], service: str) -> list[LeadTime]:
                     result.append(LeadTime(commit, event, (event.ts - commit.ts).total_seconds() / 3600))
     return result
 ```
+<!-- fmt:on -->
 
 For every `deploy` event of the service and every commit named in its ref, find the commit's event and compute `(event.ts - commit.ts).total_seconds() / 3600`: hours between the two events. Batching matters: if four commits ship together on Friday, the Monday commit waited four days. The reported value is the **median** of these per-commit values over deployments inside the window.
 
 ### Change fail rate and recovery, in code
 
+<!-- fmt:off -->
 ```python
 def compute(events: Sequence[Event], service: str, start: datetime, end: datetime) -> ServiceMetrics:
     """The metrics of one service for deployments inside `[start, end)`."""
@@ -153,6 +156,7 @@ def compute(events: Sequence[Event], service: str, start: datetime, end: datetim
         ),
     )
 ```
+<!-- fmt:on -->
 
 A `failed` event counts only if its `ref` is one of the window's real deployments. The set `{failure.ref for failure in failures}` counts each failed deployment once even if it has several `failed` events. Each failure is paired with the earliest `recovered` event for the same deployment at or after it; the difference in minutes goes into the recovery list; a failure with no recovery is `open`. Details of every line are in [python.md](python.md).
 
@@ -160,6 +164,7 @@ A `failed` event counts only if its `ref` is one of the window's real deployment
 
 `simulate(seed)` produces 28 days for three teams: `orders` (small changes, deploys after every merge), `search` (deploys Tuesday and Thursday) and `billing` (one weekly batch on Friday). A bigger batch fails more often and takes longer to fix, by stated assumptions (ADR 0006):
 
+<!-- fmt:off -->
 ```python
             size = len(commits)
             if rng.random() < min(0.9, profile.fail_base + profile.fail_per_commit * size):
@@ -172,6 +177,7 @@ A `failed` event counts only if its `ref` is one of the window's real deployment
                     Event(failed_at + timedelta(minutes=minutes), profile.service, EventType.RECOVERED, deployment)
                 )
 ```
+<!-- fmt:on -->
 
 `rng.random() < min(0.9, profile.fail_base + profile.fail_per_commit * size)` is the chance of failure for a deployment of `size` commits (`min(0.9, ...)` caps it at 90 percent); the recovery time is `(recovery_base + recovery_per_commit * size) * rng.uniform(0.7, 1.4)` minutes. The result shows what the metrics make visible when teams batch differently; it is a model, not a measurement.
 

@@ -44,6 +44,7 @@ Git appears in two places. First, **creating a service**: the platform makes a n
 
 ### `src/goldenpath/infrastructure/repositories.py`
 
+<!-- fmt:off -->
 ```python
 """Create a new service's Git repository and publish it to a local bare remote (standing in for `gh repo create`)."""
 
@@ -66,10 +67,12 @@ def _git(directory: Path, *args: str) -> str:
     )
     return done.stdout.strip()
 ```
+<!-- fmt:on -->
 
 - **Line 9**: `AUTHOR = ("platform-bot", "platform-bot@example.test")`: a fixed name and e-mail for the commits the platform makes. The `.test` domain is reserved and can never be a real address.
 - **Lines 12 to 20**, `_git(directory, *args)`: runs `git -c user.name=platform-bot -c user.email=platform-bot@example.test ARGS...` inside `directory`. `-c name=value` sets a Git setting for this one command, so a commit works on a machine with no Git identity configured. `*args` collects any number of extra words into a tuple and `*args` in the call spreads them back out. `subprocess.run([...], cwd=directory, capture_output=True, text=True, check=True)` starts Git as a separate program with the words as a *list* (never a shell string), captures its output as text, and raises an error if Git exits non-zero. `done.stdout.strip()` returns the printed text without the trailing newline. The `# noqa: S603` and `# noqa: S607` comments silence two security-lint warnings about starting programs ([ruff.md](ruff.md)).
 
+<!-- fmt:off -->
 ```python
 class GitRepositories:
     """`create` runs `git init`, commits everything, creates `<remotes>/<name>.git` and pushes `main` to it."""
@@ -96,6 +99,7 @@ def commits_since(directory: Path, base: str | None) -> Sequence[str]:
     spec = f"{base}..HEAD" if base else "HEAD"
     return _git(directory, "rev-list", "--reverse", "--abbrev-commit", spec).split()
 ```
+<!-- fmt:on -->
 
 - **Lines 30 to 40**, `create(directory, name, message)`: `remote = self._remotes / f"{name}.git"` is the path of the "server" copy; `remote.parent.mkdir(parents=True, exist_ok=True)` creates its folder. Then, in order:
   1. `git init -q --bare -b main REMOTE`: a **bare** repository (history only, no working files, what a server keeps) with `main` as its first branch name (`-b main` means the result does not depend on the user's global Git settings; `-q` is quiet).
@@ -158,11 +162,13 @@ evidence: $(STAMP) ## every production deployment of each demo service with its 
 
 ### `_platform_ref` and the marker file
 
+<!-- fmt:off -->
 ```python
 def _platform_ref() -> str:
     done = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False)  # noqa: S607
     return done.stdout.strip() or "0" * 40
 ```
+<!-- fmt:on -->
 
 The platform's own commit id (`git rev-parse HEAD`, or forty zeros if Git says nothing) is written into each generated repository's `.golden-path.yaml` as `platform_ref`, so every service records which version of the golden path made it ([yaml.md](yaml.md)).
 

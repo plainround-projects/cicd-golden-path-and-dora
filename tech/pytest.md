@@ -83,6 +83,7 @@ show_missing = true
 
 ### `tests/unit/domain/test_events_and_metrics.py`: the lesson's table, as tests
 
+<!-- fmt:off -->
 ```python
 from datetime import UTC, datetime, timedelta
 
@@ -125,9 +126,11 @@ def by_service() -> dict[str, metrics.ServiceMetrics]:
     return {name: metrics.compute(events, name, start, end) for name in metrics.services(events)}
 
 ```
+<!-- fmt:on -->
 
 - **Lines 9 to 28**: `SAMPLE` is the lesson's 18 events as a block of text. **Lines 31 to 33**, `sample_events()`: `SAMPLE.strip().splitlines()` gives lines; `line.split(",")` splits each into four cells; each becomes a validated `Event` (`parse_timestamp(ts)`, `EventType(kind)`). **Lines 36 to 39**, `by_service()`: computes the metrics of each service over the data's own window and returns a dictionary by name.
 
+<!-- fmt:off -->
 ```python
 def test_the_window_of_the_sample_is_one_week_from_midnight_of_the_first_day():
     start, end = metrics.window_of(sample_events())
@@ -210,6 +213,7 @@ def test_the_median_batch_size_tells_a_weekly_batch_from_small_changes():
     assert table["billing"].median_batch_size == 4.0
 
 ```
+<!-- fmt:on -->
 
 - **Lines 42 to 45**: the window of the sample starts at midnight of 1 September and lasts exactly 7 days. **Lines 48 to 53**: `orders` has 4 deployments per week, median lead time 4.0 hours, change fail rate 0.25, recovery 30 minutes. **Lines 56 to 61**: `billing` has 1, 62.0 hours, 1.0 and 240 minutes: the lesson's table.
 - **Lines 64 to 66**: lead time is per commit: billing's four commits have 26, 50, 74 and 98 hours. **Lines 69 to 71**: orders' five are 0.5, 3.5, 4.0, 5.0 and 66.0.
@@ -218,6 +222,7 @@ def test_the_median_batch_size_tells_a_weekly_batch_from_small_changes():
 - **Lines 109 to 114**: with one more event in the second week, `weekly` returns weeks numbered `[1, 2]`, and week 1 has both services. **Lines 117 to 120**: median batch sizes are 1.0 and 4.0.
 - **Lines 123 to 126**: `parse_deploy_ref` and `format_deploy_ref` round-trip, and `d9:` has no commits. **Lines 129 to 131**: a time without a zone is taken as UTC and `+02:00` is converted (11:00 at +02:00 is 09:00 UTC).
 
+<!-- fmt:off -->
 ```python
 @pytest.mark.parametrize(
     ("service", "kind", "ref", "detail"),
@@ -248,12 +253,14 @@ def test_a_refused_deployment_is_counted_as_refused_not_as_a_failed_deployment()
     assert orders.refused == 1
     assert orders.change_fail_rate == 0.25
 ```
+<!-- fmt:on -->
 
 - **Lines 134 to 145**: `@pytest.mark.parametrize` runs the same test for four bad events: an upper-case service name, a ref with a space and `!`, a `deploy` with no colon, and a `detail` on a `commit`. Each must raise `InvalidEventError`. **Lines 148 to 150**: an event with no time zone is refused (`match="time zone"` checks the message).
 - **Lines 153 to 161**: a `failed` event with the detail `signature` for a deployment that never ran counts in `refused` (1), and the change fail rate stays 0.25: a refusal is not a failed deployment.
 
 ### `tests/unit/domain/test_catalog_rules_simulation.py`: the contract and the simulation
 
+<!-- fmt:off -->
 ```python
 import json
 from pathlib import Path
@@ -307,11 +314,13 @@ def test_a_mapping_with_a_missing_key_names_it():
         from_mapping({"name": "a1", "owner": "team-orders", "lifecycle": "production", "runbook": "https://x"})
 
 ```
+<!-- fmt:on -->
 
 - **Lines 17 to 25**, `entry(**changes)`: builds a valid `CatalogEntry` and lets a test change some fields (`{**base, **changes}` merges two dictionaries, the second winning). **Lines 28 to 29**: a valid entry is returned unchanged.
 - **Lines 32 to 45**: six broken entries, one per rule: an owner `alice` ("not a person"), `team-ghost` ("not a registered team"), a bad name, a lifecycle `forever`, a runbook `http://insecure`, a blank SLO. `pytest.raises(InvalidCatalogEntryError, match=message)` checks both the error type and that the message contains the text.
 - **Lines 48 to 50**: a mapping without `slo` raises an error that names `'slo'`.
 
+<!-- fmt:off -->
 ```python
 def template_workflow() -> dict[str, Any]:
     return load_workflow((ROOT / "template" / ".github" / "workflows" / "ci.yml").read_text())
@@ -384,11 +393,13 @@ def test_protection_that_weakens_a_rule_is_found():
     assert codes(rules.check_protection(weak)) == {"GP-CHECKS", "GP-STRICT", "GP-ADMINS", "GP-PR"}
 
 ```
+<!-- fmt:on -->
 
 - **Lines 53 to 58**: `template_workflow()` loads the real template workflow; `codes(findings)` makes a set of codes. **Lines 61 to 62**: the real template workflow has no findings.
 - **Lines 65 to 97**: each test removes or changes one thing in the loaded workflow and expects one code: delete the `make sign` step: `GP-SIGN`; delete `make verify`: `GP-VERIFY`; delete the release job's `id-token`: `GP-OIDC`; add `id-token: write` at the top: `GP-PERMS`; three bad references (`@v4`, `@main`, a 39-character commit): `GP-PIN`; add a step `docker run python:latest`: `GP-MOVING`.
 - **Lines 106 to 112**: `protection()` loads the real `protection.json`; it has no findings. **Lines 115 to 121**: weakening four things (only `lint` required, `strict` off, admins not enforced, no pull-request reviews) gives exactly `{"GP-CHECKS", "GP-STRICT", "GP-ADMINS", "GP-PR"}`.
 
+<!-- fmt:off -->
 ```python
 @pytest.mark.parametrize(
     "text",
@@ -473,6 +484,7 @@ def test_the_weekly_batch_team_deploys_only_on_fridays():
     events = simulation.simulate(7)
     assert {e.ts.weekday() for e in events if e.service == "billing" and e.type.value == "deploy"} == {4}
 ```
+<!-- fmt:on -->
 
 - **Lines 124 to 141**: seven strings that look like long-lived credentials (an AWS key id, an AWS secret assignment, two private-key headers, a GitHub token, two stored workflow secrets) each give exactly `{"GP-SECRET"}`; a clean file gives nothing. **Lines 144 to 146**: `__NAME__` is a leftover placeholder (`GP-PLACEHOLDER`); `__init__ and __main__` are not (the pattern needs capital letters). **Lines 149 to 151**: `summarize` says "conforms" or lists codes.
 - **Line 154 to 156**: `catalog/teams.yaml` lists a team for each demo service.
@@ -481,6 +493,7 @@ def test_the_weekly_batch_team_deploys_only_on_fridays():
 
 ### `tests/unit/application/test_use_cases.py`: the use cases with fakes
 
+<!-- fmt:off -->
 ```python
 class MemoryStore:
     def __init__(self) -> None:
@@ -550,10 +563,12 @@ def generator(findings: list[Finding] | None = None) -> tuple[ServiceGenerator, 
         repositories,
     )
 ```
+<!-- fmt:on -->
 
 - **Lines 16 to 70**: small fake classes that satisfy the ports without inheriting from anything: `MemoryStore` (events in a list), `Renderer` (records its calls and returns two file names), `MemoryCatalog` (one team, `team-orders`), `Repositories` (records the names created and returns a fake commit id), `Auditor` (returns the findings it was given).
 - **Lines 72 to 82**, `generator(findings)`: wires a `ServiceGenerator` from the fakes; `clock = iter(range(100))` and `clock=lambda: float(next(clock))` make a fake clock that returns 0.0, 1.0, 2.0, ... each time it is called.
 
+<!-- fmt:off -->
 ```python
 def test_a_service_is_rendered_audited_registered_and_published_in_that_order():
     service_generator, renderer, catalog, repositories = generator()
@@ -632,12 +647,14 @@ def test_the_lessons_sample_services_are_left_out_of_a_summary_unless_asked_for(
     assert [row.service for row in measure.summary(store, include_samples=True)] == ["orders", "sample-orders"]
     assert [row.service for _, rows in measure.per_week(store) for row in rows] == ["orders"]
 ```
+<!-- fmt:on -->
 
 - **Lines 85 to 95**: a service is rendered with the right substitutions, registered, published, and has the runbook `.../runbooks/orders` and the three timings. **Lines 98 to 103**: a person as owner raises `InvalidCatalogEntryError` and **nothing was rendered or published**. **Lines 106 to 113**: a failed audit raises `NonConformingServiceError` carrying the findings; nothing is registered or published.
 - **Lines 116 to 120**: `record(store, [event])` returns 1 and then 0 for the same event. **Lines 123 to 129**: `list_deployments` lists only the named service's deployments with their commits. **Lines 132 to 136**: measuring an empty store raises `NoEventsError`. **Lines 139 to 151**: a commit at 09:00 and its deployment at 14:00 give a 5.0-hour lead time; the trace gives the same; one week. **Lines 154 to 160**: `sample-` services are left out of a summary unless `include_samples=True`.
 
 ### `tests/unit/infrastructure/test_adapters.py`: the adapters
 
+<!-- fmt:off -->
 ```python
 def test_the_csv_store_round_trips_events_and_ignores_a_duplicate(tmp_path):
     store = CsvEventStore(tmp_path / "events.csv")
@@ -689,9 +706,11 @@ def test_a_log_record_is_one_logfmt_line_and_the_stream_gets_it():
     assert "msg=hi a=1" in stream.getvalue()
 
 ```
+<!-- fmt:on -->
 
 - **Lines 29 to 36**: the CSV store round-trips two events, ignores a duplicate (`append` returns 2 then 0) and `clear` empties it. **Lines 39 to 42**: it reads the lesson's four-column sample: 18 events, the first being commit `a1`. **Lines 45 to 50**: settings have defaults (port 5432, collector port 55442, workdir `.local`), the password has none, and `need_database=False` allows an empty password. **Lines 53 to 59**: four unusable values each name their variable in the error. **Lines 62 to 66**: the connection string escapes `p@ss/w` as `p%40ss%2Fw`. **Lines 69 to 76**: a log record is one logfmt line ending `msg="two words" service=orders`, and `configure_logging` writes to a given stream (`io.StringIO` is an in-memory text stream).
 
+<!-- fmt:off -->
 ```python
 def test_rendering_replaces_every_placeholder_and_keeps_scripts_executable(tmp_path):
     destination = tmp_path / "orders"
@@ -780,10 +799,12 @@ def test_the_catalog_registers_replaces_and_lists_entries(tmp_path):
     assert "team-platform" in catalog.teams()
 
 ```
+<!-- fmt:on -->
 
 - **Lines 79 to 88**: rendering replaces every placeholder (no file text still contains `__NAME__`) and keeps scripts executable (`stat().st_mode & 0o111` tests the execute permission bits). **Lines 91 to 93**: rendering into an existing folder raises `FileExistsError`. **Lines 96 to 111**: helpers `render(...)` and `auditor()`.
 - **Lines 114 to 147**: audit tests on a freshly rendered repository: it conforms; deleting the `make sign` line gives `GP-SIGN`; a file `deploy/creds.env` containing an AWS key gives `GP-SECRET`; an owner `alice` gives `GP-CATALOG`; deleting `protection.json` and `catalog-info.yaml` gives `GP-CHECKS` and `GP-CATALOG`; deleting the workflow gives `GP-NOWORKFLOW`. **Lines 150 to 153**: the workflow loader restores the `on` key and rejects a list. **Lines 156 to 163**: the catalog registers, replaces and lists entries (registering the same name again replaces the file) and knows `team-platform`. **Lines 166 to 173**: a service with only a commit prints `n/a` four times in the metrics table. **Lines 176 to 180**: `event_from_json` defaults to the collector's clock and refuses an unknown type.
 
+<!-- fmt:off -->
 ```python
 @pytest.fixture
 def collector(tmp_path: Path) -> Iterator[tuple[str, CsvEventStore]]:
@@ -885,6 +906,7 @@ def test_a_collector_whose_store_is_down_answers_503_instead_of_hanging():
         server.shutdown()
         server.server_close()
 ```
+<!-- fmt:on -->
 
 - **Lines 183 to 190**: the fixture `collector` starts a real collector on port 0 (the operating system picks a free port) on a daemon thread, with a CSV store and a fake clock, `yield`s its address and the store, and afterwards shuts it down. **Lines 193 to 201**: `post(url, body, token)` sends a real HTTP request with `urllib` and returns the status and the JSON.
 - **Lines 204 to 209**: an authorized event is accepted (202) and stored once; the same body again gives `accepted: 0`. **Lines 212 to 217**: no token and a wrong token are both 401 and nothing is stored. **Lines 220 to 224**: four bad bodies (not JSON, broken JSON, an invalid event, an empty object) are 400. **Lines 227 to 233**: an empty body is 400, one byte over 64 KiB is 413, `/healthz` is 200 and `/nope` raises a 404 `HTTPError`.
@@ -892,6 +914,7 @@ def test_a_collector_whose_store_is_down_answers_503_instead_of_hanging():
 
 ### `tests/unit/interfaces/test_cli.py`: the command line
 
+<!-- fmt:off -->
 ```python
 @pytest.fixture(autouse=True)
 def isolated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -941,10 +964,12 @@ def test_a_service_is_generated_audited_and_listed(capsys):
     assert "orders" in capsys.readouterr().out
 
 ```
+<!-- fmt:on -->
 
 - **Lines 13 to 16**: `@pytest.fixture(autouse=True)` runs before every test in the file: `monkeypatch.setenv("GOLDENPATH_WORKDIR", ...)` points the working folder at a temporary one and `delenv("POSTGRES_PASSWORD")` removes the password.
 - **Lines 19 to 23**: `metrics --csv SAMPLE` prints the lesson's numbers for both services. **Lines 26 to 28**: `--weekly` prints `week 1`. **Lines 31 to 36**: `trace orders a5` prints the commit event, the deploy event and `lead time:     66.0 h`. **Lines 39 to 41**: an unknown commit exits with the usage code and "no commit" on standard error. **Lines 44 to 46**: `deployments billing` lists `e1  commits: b1, b2, b3, b4`. **Lines 49 to 51**: owner `alice` is refused with the usage code ("not a person"). **Lines 54 to 58**: `new-service orders team-orders` succeeds and prints "conforms to the golden path contract", and `catalog` then lists it.
 
+<!-- fmt:off -->
 ```python
 def test_the_audit_command_passes_a_generated_repository_and_fails_a_tampered_one(tmp_path, capsys):
     repo = tmp_path / "repo"
@@ -986,11 +1011,13 @@ def test_the_parser_requires_a_command():
 def test_the_file_catalog_is_empty_before_any_service_exists(tmp_path):
     assert FileCatalog(ROOT / "catalog" / "teams.yaml", tmp_path / "none").entries() == []
 ```
+<!-- fmt:on -->
 
 - **Lines 61 to 71**: `audit` passes a freshly rendered repository and fails after the `make verify` line is removed (exit 1, `GP-VERIFY` printed). **Lines 74 to 77**: `emit` to a collector that is not running exits with the failure code and "could not be reached". **Lines 80 to 83**: `COLLECTOR_PORT=abc` exits with the usage code. **Lines 86 to 90**: the collector refuses to start without a token. **Lines 93 to 95**: the parser requires a command (`SystemExit`). **Lines 98 to 99**: the file catalog is empty before any service exists.
 
 ### `tests/template/test_generated_service.py`
 
+<!-- fmt:off -->
 ```python
 def make_generator(workdir: Path) -> tuple[ServiceGenerator, FileCatalog]:
     catalog = FileCatalog(ROOT / "catalog" / "teams.yaml", workdir / "catalog")
@@ -1029,6 +1056,7 @@ def test_no_generated_file_holds_a_long_lived_credential_or_a_placeholder(tmp_pa
     assert RepositoryAuditor(catalog).audit(service.directory) == []
     assert "team-search" in (service.directory / "README.md").read_text()
 ```
+<!-- fmt:on -->
 
 - **Lines 18 to 27**: `make_generator(workdir)` builds a `ServiceGenerator` with the **real** renderer, file catalog, Git repositories and auditor.
 - **Lines 30 to 37**: `@pytest.mark.parametrize(("name", "owner"), TEAMS)` runs once per team. It generates the service, runs the real `make ci` inside it (`subprocess.run(["make", "--no-print-directory", "ci"], cwd=service.directory, ...)`), asserts exit status 0 and `"OK"` in the output (`unittest` prints `OK` on standard error), and that the catalog lists the service.
@@ -1036,6 +1064,7 @@ def test_no_generated_file_holds_a_long_lived_credential_or_a_placeholder(tmp_pa
 
 ### `tests/integration/`: against the real database
 
+<!-- fmt:off -->
 ```python
 """Integration tests need PostgreSQL from docker-compose.yml: `make up` first."""
 
@@ -1072,9 +1101,11 @@ def cleanup(settings: Settings) -> None:
     with psycopg.connect(settings.dsn) as connection:
         connection.execute("DELETE FROM events WHERE service LIKE 'it-%'")
 ```
+<!-- fmt:on -->
 
 - **Lines 16 to 18**: a pytest **hook** (pytest calls it by name) adds the `integration` marker to every test in the folder. **Lines 21 to 23**: `settings` is built once from the real environment (`scope="session"`). **Lines 26 to 31**: `store` cleans up, `yield`s a `PostgresEventStore` and cleans up again. **Lines 34 to 36**: `cleanup` deletes every row whose service starts with `it-` ([psycopg.md](psycopg.md)).
 
+<!-- fmt:off -->
 ```python
 def sample_with_prefix() -> list[Event]:
     return [
@@ -1133,10 +1164,12 @@ def test_sql_and_python_give_the_lessons_numbers_for_the_sample(store, settings)
     assert python["it-billing"].median_lead_time_hours == sql["it-billing"][1]
     assert python["it-orders"].change_fail_rate == sql["it-orders"][2] / sql["it-orders"][0]
 ```
+<!-- fmt:on -->
 
 - **Lines 20 to 24**: `sample_with_prefix()` reads the lesson's CSV and renames each service `it-orders`/`it-billing`, so test rows never mix with real ones. **Lines 27 to 34**: events round-trip and a duplicate is ignored. **Lines 37 to 45**: three bad `INSERT`s straight into the table (an unknown type, a deploy without a colon, a detail on a commit) each raise `psycopg.errors.CheckViolation`: the database defends itself ([postgresql.md](postgresql.md)).
 - **Lines 48 to 75**: the heart: load the sample, compute the metrics in Python, run an SQL query over `deploy_commits`, `lead_times` and `events`, and assert the SQL gives `(4, 4.0, 1)` for `it-orders` and `(1, 62.0, 1)` for `it-billing` and that Python agrees (`python["it-orders"].change_fail_rate == 1 / 4`).
 
+<!-- fmt:off -->
 ```python
 def test_the_queries_file_runs_against_the_seed_and_prints_the_lessons_table(settings):
     seed = (ROOT / "sql" / "002_seed.sql").read_text()
@@ -1182,11 +1215,13 @@ def test_the_cli_prints_the_sample_table_from_the_csv_without_a_database():
     assert lines["orders"][1:7] == ["4", "4.0", "h", "25%", "30", "min"]
     assert lines["billing"][1:7] == ["1", "62.0", "h", "100%", "240", "min"]
 ```
+<!-- fmt:on -->
 
 - **Lines 78 to 93**: apply `sql/002_seed.sql`, split `sql/003_queries.sql` at `";\n"` into statements, run each `SELECT`, and assert the three results: deployments `d1` to `d4`; the trace of `a5` with 66.0 hours; and the metrics table rows `(1.0, 62.0, 100.0, 240.0)` and `(4.0, 4.0, 25.0, 30.0)`. **Lines 96 to 108**: the view lists `d1` with `a1` and `a2` and an empty deployment `d2` with `None`. **Lines 111 to 120**: the installed `goldenpath metrics --csv` command prints the lesson's numbers with no database.
 
 ### `tests/e2e/test_golden_path.py`
 
+<!-- fmt:off -->
 ```python
 """One service from the command to its first production deployment, with a real registry, key and compose, and an
 unsigned image refused. Needs Docker, cosign and `make up` first. Takes a few minutes."""
@@ -1249,6 +1284,7 @@ def test_an_unsigned_image_is_refused_at_deployment(first_deployment):
     assert done.returncode == 0, done.stdout + done.stderr
     assert "refused" in done.stdout
 ```
+<!-- fmt:on -->
 
 - **Lines 11 to 25**: `pytestmark = pytest.mark.e2e`; `goldenpath(*args, check=True)` runs the installed command with a 30-minute timeout. **Lines 27 to 30**: the autouse fixture `prerequisites` skips the module with a clear message unless cosign and the demo key exist. **Lines 33 to 44**: `first_deployment` (`scope="module"`: once for the file) removes earlier copies, runs `new-service it-e2e team-orders --release`, `yield`s the finished process, and then removes the service's containers with `docker compose ... down -v`.
 - **Lines 47 to 49**: the time printed ("first production deployment in Ns") is under 1800 seconds. **Lines 52 to 54**: the deployment is listed (`it-e2e-d1`). **Lines 57 to 60**: `demo-unsigned` exits 0 and prints "refused". These need `make up` first and a few minutes.

@@ -29,6 +29,7 @@ A **bearer token** is a secret string sent in the header `Authorization: Bearer 
 
 ### The collector, `src/goldenpath/interfaces/collector.py`
 
+<!-- fmt:off -->
 ```python
 """The event collector: `POST /events` from pipelines and `GET /healthz`, in front of the event store."""
 
@@ -49,9 +50,11 @@ from goldenpath.domain.events import Event, EventType, parse_timestamp
 MAX_BODY_BYTES = 64 * 1024
 
 ```
+<!-- fmt:on -->
 
 - **Line 1**: the docstring: `POST /events` from pipelines and `GET /healthz`, in front of the event store. **Lines 5 to 15**: imports (`hmac`, `json`, `Mapping`, time types, the server classes, `Any`, the ports and domain types). **Line 17**: `MAX_BODY_BYTES = 64 * 1024`: the largest request body accepted, 64 kibibytes.
 
+<!-- fmt:off -->
 ```python
 def event_from_json(item: Mapping[str, Any], now: datetime) -> Event:
     """Build an event from a JSON object. A missing `ts` means "now" on the collector's clock."""
@@ -69,10 +72,12 @@ def collector_server(port: int, sink: EventSink, token: str, clock: Any = None) 
     """A threaded server. Without the bearer token every write is refused; an empty `token` refuses everything."""
     now = clock or (lambda: datetime.now(UTC))
 ```
+<!-- fmt:on -->
 
 - **Lines 20 to 29**, `event_from_json(item, now)`: turns a JSON object into a validated `Event`. `kind = EventType(str(item["type"]))`, `service = str(item["service"])`, `ref = str(item["ref"])` in a `try:` block; if a key is missing (`KeyError`) or the type is not one of the four (`ValueError`), `raise InvalidEventError("an event needs type (commit, deploy, failed or recovered), service and ref") from None`. `ts = parse_timestamp(str(item["ts"])) if item.get("ts") else now`: **a missing time means "now" on the collector's clock**, so a pipeline cannot choose its own timestamp. `str(item.get("detail") or "")` takes the optional reason.
 - **Lines 32 to 34**: `collector_server(port, sink, token, clock=None)` builds the server. `now = clock or (lambda: datetime.now(UTC))` uses the given clock or the real one (a `lambda` is a tiny nameless function).
 
+<!-- fmt:off -->
 ```python
     class Handler(BaseHTTPRequestHandler):
         def _reply(self, status: int, payload: dict[str, object]) -> None:
@@ -102,6 +107,7 @@ def collector_server(port: int, sink: EventSink, token: str, clock: Any = None) 
                 self._accept()
 
 ```
+<!-- fmt:on -->
 
 - **Line 36**: the handler class is defined *inside* the function so it can use `sink`, `token` and `now`.
 - **Lines 37 to 43**, `_reply(status, payload)`: `body = (json.dumps(payload) + "\n").encode()` makes JSON text and encodes it to bytes; the headers say it is JSON and how many **bytes** it has (`len(body)`, which is why the text is encoded first); then the body is written.
@@ -109,6 +115,7 @@ def collector_server(port: int, sink: EventSink, token: str, clock: Any = None) 
 - **Lines 49 to 53**, `do_GET`: `/healthz` answers `200 {"status": "ok"}`; any other path `404 {"error": "not found"}`.
 - **Lines 55 to 61**, `do_POST`: a path other than `/events` is 404; without the right token it is `401 {"error": "a bearer token is required"}`; otherwise `_accept()`.
 
+<!-- fmt:off -->
 ```python
         def _accept(self) -> None:
             length = int(self.headers.get("Content-Length", "0"))
@@ -136,6 +143,7 @@ def collector_server(port: int, sink: EventSink, token: str, clock: Any = None) 
 
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)
 ```
+<!-- fmt:on -->
 
 - **Lines 64 to 67**: `length = int(self.headers.get("Content-Length", "0"))`; `if not 0 < length <= MAX_BODY_BYTES:` refuses a body that is empty (400) or too large (413: `413 if length else 400`). The limit stops a client from making the server read without end.
 - **Lines 68 to 74**: `payload = json.loads(self.rfile.read(length))` reads exactly `length` bytes and parses the JSON; `items = payload if isinstance(payload, list) else [payload]` accepts one object or a list; `events = [event_from_json(item, now()) for item in items]` builds validated events. If the JSON is broken or an event is invalid, `except (json.JSONDecodeError, InvalidEventError, TypeError, AttributeError)` answers `400` with the message.
@@ -144,6 +152,7 @@ def collector_server(port: int, sink: EventSink, token: str, clock: Any = None) 
 
 ### The matching client, `collector_client.py`
 
+<!-- fmt:off -->
 ```python
 class CollectorEventSink:
     """An `EventSink` over HTTP. The token comes from the environment (`COLLECTOR_TOKEN`), never from code."""
@@ -186,11 +195,13 @@ class CollectorEventSink:
         except (urllib.error.URLError, TimeoutError, OSError) as error:
             raise CollectorError(f"the collector could not be reached at {self._url}: {error}") from None
 ```
+<!-- fmt:on -->
 
 - `CollectorEventSink.__init__` requires the URL to start with `http://` or `https://` and removes a trailing `/`. `append(events)` builds the JSON body, `urllib.request.Request(f"{self._url}/events", data=body, headers={...}, method="POST")`, and sends it with `urlopen(request, timeout=...)`; `int(json.loads(response.read())["accepted"])` is the reply's count. `urllib.error.HTTPError` (the server answered an error status) becomes `CollectorError("the collector answered 401: ...")`; `URLError`, `TimeoutError` or `OSError` (no answer) becomes `CollectorError("the collector could not be reached at ...")`. The `# noqa: S310` comments silence a lint warning about opening arbitrary URLs; the scheme check in `__init__` is the reason it is safe ([ruff.md](ruff.md)).
 
 ### The generated service, `template/app/main.py`
 
+<!-- fmt:off -->
 ```python
 """__NAME__: a small HTTP service. Replace it with your own; keep /healthz."""
 
@@ -233,6 +244,7 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 ```
+<!-- fmt:on -->
 
 - **Lines 3 to 5**: imports. **Line 7**: `VERSION = os.environ.get("APP_VERSION", "dev")` ([dotenv.md](dotenv.md)).
 - **Lines 10 to 16**, `answer(path)`: all the logic, as a plain function returning `(status, body)`: `/healthz` gives `(200, "ok\n")`; `/` gives `(200, json.dumps({"service": "__NAME__", "owner": "__OWNER__", "version": VERSION}) + "\n")`; anything else `(404, "not found\n")`. `__NAME__` and `__OWNER__` are placeholders the platform replaces when it generates the service.

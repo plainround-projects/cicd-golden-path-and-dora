@@ -33,6 +33,7 @@ The event store is PostgreSQL ([postgresql.md](postgresql.md)), and `PostgresEve
 
 ## Walkthrough of this repository's use
 
+<!-- fmt:off -->
 ```python
 """The `EventStore` port on PostgreSQL (sql/001_schema.sql creates the table)."""
 
@@ -58,10 +59,12 @@ class PostgresEventStore:
     def _connect(self) -> psycopg.Connection[tuple[Any, ...]]:
         return psycopg.connect(self._dsn, connect_timeout=_CONNECT_TIMEOUT_SECONDS)
 ```
+<!-- fmt:on -->
 
 - **Line 1**: docstring. **Line 5**: `Iterable` is the type hint for "something you can loop over"; **line 8**: `import psycopg`. **Line 12**: `_CONNECT_TIMEOUT_SECONDS = 60`, generous on purpose: a loaded laptop can take many seconds to accept a connection.
 - **Lines 15 to 20**: the class stores the connection string `dsn` ("data source name": `postgresql://user:password@host:port/db`, built by `Settings.dsn`, [dotenv.md](dotenv.md)). **Lines 22 to 23**, `_connect`: `psycopg.connect(self._dsn, connect_timeout=...)` opens a connection; the return type `psycopg.Connection[tuple[Any, ...]]` says result rows come back as tuples.
 
+<!-- fmt:off -->
 ```python
     def append(self, events: Iterable[Event]) -> int:
         """Insert events; return how many were new."""
@@ -87,6 +90,7 @@ class PostgresEventStore:
         with self._connect() as connection:
             connection.execute("TRUNCATE events")
 ```
+<!-- fmt:on -->
 
 - **Lines 25 to 36**, `append(events)`: `with self._connect() as connection, connection.cursor() as cursor:` opens the connection and a cursor (the object that runs statements) in one `with`. When the block ends normally the work is **committed** (made permanent); if an error leaves it, it is **rolled back** (undone); then the connection is closed. For each event `cursor.execute(statement, values)` sends the statement and the five values separately. `event.type.value` is the text of the enumeration member; `event.ts` is a time-zone-aware `datetime`, which psycopg stores as `timestamptz`. The whole batch is one **transaction**: all events are stored or none are. `inserted += cursor.rowcount` counts only new rows, so the return value is how many events were new.
 - **Lines 38 to 42**, `all`: `connection.execute("SELECT ... ORDER BY ts, id").fetchall()` returns a list of tuples. The list comprehension `[Event(ts, service, EventType(kind), ref, detail) for ts, service, kind, ref, detail in rows]` unpacks each tuple into five names and builds a validated `Event` again.
@@ -94,6 +98,7 @@ class PostgresEventStore:
 
 ### The integration tests
 
+<!-- fmt:off -->
 ```python
 """Integration tests need PostgreSQL from docker-compose.yml: `make up` first."""
 
@@ -130,6 +135,7 @@ def cleanup(settings: Settings) -> None:
     with psycopg.connect(settings.dsn) as connection:
         connection.execute("DELETE FROM events WHERE service LIKE 'it-%'")
 ```
+<!-- fmt:on -->
 
 `settings` is built once (`scope="session"`); `store` calls `cleanup(settings)` before and after each test, and `cleanup` opens its own connection with `psycopg.connect(settings.dsn)` and runs `DELETE FROM events WHERE service LIKE 'it-%'`, removing every row whose service name starts with `it-` ([pytest.md](pytest.md)).
 

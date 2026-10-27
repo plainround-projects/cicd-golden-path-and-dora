@@ -38,6 +38,7 @@ Line 1 is the header. Each other line is one event: a time without seconds (read
 
 ### Reading: `CsvEventStore.all`
 
+<!-- fmt:off -->
 ```python
     def all(self) -> list[Event]:
         """Every event, oldest first."""
@@ -56,11 +57,13 @@ Line 1 is the header. Each other line is one event: a time without seconds (read
             ]
         return sorted(events, key=lambda event: event.ts)
 ```
+<!-- fmt:on -->
 
 - `if not self._path.exists(): return []` treats a missing file as no events. `self._path.open(newline="")` opens for reading (`newline=""` stops Python changing line endings the csv module manages itself). `csv.DictReader(handle)` returns each row as a dictionary keyed by the header. The list comprehension builds a validated `Event` per row: `parse_timestamp(row["ts"])`, `EventType(row["type"])`, `row["ref"]`, and `row.get("detail") or ""` (the sample has no `detail` column, so `get` returns `None`, and `or ""` turns it into empty text). The result is sorted by time: `sorted(events, key=lambda event: event.ts)`.
 
 ### Writing: `CsvEventStore.append`
 
+<!-- fmt:off -->
 ```python
     def append(self, events: Iterable[Event]) -> int:
         """Add events that are not already in the file."""
@@ -77,6 +80,7 @@ Line 1 is the header. Each other line is one event: a time without seconds (read
                 )
         return len(new)
 ```
+<!-- fmt:on -->
 
 - `existing = set(self.all())` collects the events already in the file into a **set** (events are frozen dataclasses, so they can be members of a set); `new = [event for event in events if event not in existing]` keeps only the others, so appending the same events twice stores them once. `is_new_file = not self._path.exists() or self._path.stat().st_size == 0` is true for a missing or empty file, and then `writer.writerow(["ts", "service", "type", "ref", "detail"])` writes the header (this file has the extra `detail` column). `with self._path.open("a", newline="") as handle:` opens for **appending**. Each event becomes one row: `event.ts.strftime("%Y-%m-%dT%H:%M:%S")` formats the time as text. `return len(new)` says how many were new. `clear()` deletes the file (`unlink(missing_ok=True)`).
 

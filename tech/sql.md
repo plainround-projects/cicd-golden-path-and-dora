@@ -124,6 +124,7 @@ ORDER BY d.service;
 
 ### SQL written inside Python
 
+<!-- fmt:off -->
 ```python
     def append(self, events: Iterable[Event]) -> int:
         """Insert events; return how many were new."""
@@ -149,6 +150,7 @@ ORDER BY d.service;
         with self._connect() as connection:
             connection.execute("TRUNCATE events")
 ```
+<!-- fmt:on -->
 
 - **Lines 30 to 34**: `cursor.execute("INSERT INTO events (ts, service, type, ref, detail) VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING", (values...))`. Five `%s` placeholders and a tuple of five values, sent separately so a value can never be read as SQL. `ON CONFLICT DO NOTHING` skips a row that would break the unique constraint (a repeated event). **Line 35**: `inserted += cursor.rowcount` adds 1 if a row was really added, 0 if skipped.
 - **Line 41**: `SELECT ts, service, type, ref, detail FROM events ORDER BY ts, id` reads everything in time order (`id` breaks ties). **Line 47**: `TRUNCATE events` deletes every row at once.

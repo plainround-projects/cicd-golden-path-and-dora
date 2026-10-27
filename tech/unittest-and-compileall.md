@@ -26,6 +26,7 @@ A generated service must pass its own checks with **nothing installed except Pyt
 
 ### `template/tests/test_app.py`
 
+<!-- fmt:off -->
 ```python
 import json
 import unittest
@@ -50,6 +51,7 @@ class AnswerTest(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 ```
+<!-- fmt:on -->
 
 - **Lines 1 and 2**: `import json` and `import unittest`. **Line 4**: `from app.main import answer` imports the function under test from the service's own package.
 - **Line 7**: `class AnswerTest(unittest.TestCase):` a test class. **Lines 8 and 9**: `test_health_is_ok` checks `self.assertEqual(answer("/healthz"), (200, "ok\n"))`: the health path gives status 200 and the body `ok` plus a newline (`\n`).
@@ -77,6 +79,7 @@ ci: lint test
 
 ### How the platform checks the template
 
+<!-- fmt:off -->
 ```python
 """The template, generated for three imaginary teams, with real git and real make: the repositories it creates work."""
 
@@ -109,6 +112,7 @@ def make_generator(workdir: Path) -> tuple[ServiceGenerator, FileCatalog]:
 
 @pytest.mark.parametrize(("name", "owner"), TEAMS)
 ```
+<!-- fmt:on -->
 
 The platform's own test renders the template into a temporary folder with the real renderer, audits it and runs `make ci` there (real `make`, real `git`). `@pytest.mark.parametrize(("name", "owner"), TEAMS)` runs the same test for `orders`/`team-orders`, `billing`/`team-billing` and `search`/`team-search`. A change to the template that breaks a generated service therefore fails the **platform's** tests ([pytest.md](pytest.md)).
 

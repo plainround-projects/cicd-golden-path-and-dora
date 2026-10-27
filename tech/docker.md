@@ -89,6 +89,7 @@ image:
 
 ### The bypass used by the refusal demo
 
+<!-- fmt:off -->
 ```python
 def build_unsigned_image(directory: Path, registry: str, name: str, tag: str, env: Mapping[str, str]) -> str:
     """Build and push an image by hand, the way someone bypassing the pipeline would. Returns `registry/name@digest`."""
@@ -102,6 +103,7 @@ def build_unsigned_image(directory: Path, registry: str, name: str, tag: str, en
     digest = next(part for line in pushed.stdout.splitlines() for part in line.split() if part.startswith("sha256:"))
     return f"{registry}/{name}@{digest}"
 ```
+<!-- fmt:on -->
 
 `build_unsigned_image` does what someone bypassing the pipeline would: `docker build -q -t REGISTRY/NAME:unsigned .` then `docker push`, and finds the digest in the push output (`next(part for line in pushed.stdout.splitlines() for part in line.split() if part.startswith("sha256:"))`: the first word that starts with `sha256:`). The result `REGISTRY/NAME@sha256:...` has no signature, so `deploy.sh` refuses it.
 

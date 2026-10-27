@@ -67,6 +67,7 @@ The language, framework and tests (`app/`, `tests/`), the number of environments
 
 `FileTemplateRenderer` replaces `__NAME__` and the others in every text file with plain text replacement, so this README is rendered like any other file. The audit then refuses a generated repository that still has a placeholder:
 
+<!-- fmt:off -->
 ```python
 def unreplaced_placeholders(files: Mapping[str, str]) -> list[Finding]:
     """A generated repository must not still hold a `__NAME__`-style placeholder."""
@@ -76,6 +77,7 @@ def unreplaced_placeholders(files: Mapping[str, str]) -> list[Finding]:
         if re.search(r"__[A-Z_]+__", text)
     ]
 ```
+<!-- fmt:on -->
 
 `re.search(r"__[A-Z_]+__", text)` finds two underscores, capital letters or underscores, two underscores, so `__NAME__` is caught while `__init__` and `__main__` (lower case) are not. Each hit is a `GP-PLACEHOLDER` finding ([python.md](python.md)).
 

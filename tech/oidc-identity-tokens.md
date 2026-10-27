@@ -66,6 +66,7 @@ With no `--key`, cosign sees the same two environment variables itself, fetches 
 
 ### The audit looks for stored keys
 
+<!-- fmt:off -->
 ```python
 _CREDENTIAL_PATTERNS: Final = {
     "an AWS access key id": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
@@ -77,6 +78,7 @@ _CREDENTIAL_PATTERNS: Final = {
     ),
 }
 ```
+<!-- fmt:on -->
 
 `_CREDENTIAL_PATTERNS` finds text that looks like a long-lived secret: an AWS access key id, an AWS secret assignment, a private key header, a GitHub token, or a workflow that reads a stored secret named like `..._PASSWORD`, `..._ACCESS_KEY`, `..._SECRET_KEY`, `..._CLIENT_SECRET` or `..._SERVICE_ACCOUNT`. Any hit is `GP-SECRET`.
 

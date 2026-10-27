@@ -87,6 +87,7 @@ Both are mappings and lists with their own placeholder syntax: `${{ expression }
 
 ### The `on:` trap
 
+<!-- fmt:off -->
 ```python
 def load_workflow(text: str) -> dict[str, Any]:
     """Parse a workflow. PyYAML reads the key `on` as the boolean True; put it back under "on"."""
@@ -97,6 +98,7 @@ def load_workflow(text: str) -> dict[str, Any]:
         document["on"] = document.pop(True)
     return document
 ```
+<!-- fmt:on -->
 
 PyYAML reads the workflow key `on:` as the boolean `True`. `load_workflow` parses with `yaml.safe_load` (line 36), rejects anything that is not a mapping with `ValueError("a workflow must be a mapping")` (lines 37 and 38), and moves the `True` key back to the text key `"on"` (lines 39 and 40) so the rules can find the triggers. The tests check both (`load_workflow("on:\n  push:\njobs: {}\n")["on"]` contains `push`; `load_workflow("- a\n")` raises) ([pytest.md](pytest.md)).
 

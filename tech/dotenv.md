@@ -45,6 +45,7 @@ The variable names appear in `Makefile` lines 10 and 11 and in `Settings`:
 
 ### `Settings.from_env`
 
+<!-- fmt:off -->
 ```python
 def _text(environ: Mapping[str, str], name: str, default: str | None = None) -> str:
     value = environ.get(name, default if default is not None else "").strip()
@@ -63,9 +64,11 @@ def _port(environ: Mapping[str, str], name: str, default: int) -> int:
 @dataclass(frozen=True, slots=True)
 class Settings:
 ```
+<!-- fmt:on -->
 
 - `_text(environ, name, default)` reads a variable, removes surrounding spaces and raises `ConfigurationError("NAME must be set and not empty")` if the result is empty. `_port(environ, name, default)` accepts only digits and a number from 1 to 65535 (`raw.isdigit()`, `1 <= int(raw) <= 65535`).
 
+<!-- fmt:off -->
 ```python
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None, need_database: bool = True) -> Settings:
@@ -100,6 +103,7 @@ class Settings:
             f"@{self.postgres_host}:{self.postgres_port}/{quote(self.postgres_db, safe='')}"
         )
 ```
+<!-- fmt:on -->
 
 - **Lines 50 to 53**: `from_env(cls, environ=None, need_database=True)` is a class method; with `environ=None` it uses the real environment (tests pass a dictionary).
 - **Lines 54 to 62**: the host is checked with a pattern; the log level is upper-cased and must be one of `DEBUG`, `INFO`, `WARNING`, `ERROR`; `collector_port = _port(env, "COLLECTOR_PORT", 55442)`.
@@ -109,6 +113,7 @@ class Settings:
 
 ### A generated service's environment: `_pipeline_env`
 
+<!-- fmt:off -->
 ```python
 
 def _pipeline_env(settings: Settings) -> dict[str, str]:
@@ -121,6 +126,7 @@ def _pipeline_env(settings: Settings) -> dict[str, str]:
         "EVENTS_URL": settings.collector_url,
         "EVENTS_TOKEN": settings.collector_token,
 ```
+<!-- fmt:on -->
 
 Builds the dictionary handed to the generated service's `make` steps: `REGISTRY`, the paths of `cosign.key` and `cosign.pub`, `COSIGN_PASSWORD`, `EVENTS_URL` (the collector's address) and `EVENTS_TOKEN`. `_release` adds `SERVICE_NAME` (`env |= {"SERVICE_NAME": name}`; `|=` merges a dictionary into another). The template's Makefile exports `EVENTS_URL`, `SERVICE_NAME` and `COSIGN_PUBLIC_KEY` to the scripts ([bash-and-sh.md](bash-and-sh.md)).
 
