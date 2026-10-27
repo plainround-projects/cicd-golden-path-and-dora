@@ -8,7 +8,8 @@ DIGEST_FILE := .build/digest
 # (cosign 3 needs --use-signing-config=false to sign with a key and without the public transparency log.)
 COSIGN_KEY ?=
 COSIGN_PUBLIC_KEY ?=
-KEY_FLAGS = $(if $(COSIGN_KEY),--key $(COSIGN_KEY) --use-signing-config=false --tlog-upload=false,)
+# cosign gives up after three minutes by default; a busy machine or a slow network can need longer.
+KEY_FLAGS = --timeout=15m $(if $(COSIGN_KEY),--key $(COSIGN_KEY) --use-signing-config=false --tlog-upload=false,)
 DEPLOYMENT ?= $(NAME)-d$(shell date +%s)
 export EVENTS_URL SERVICE_NAME := $(NAME)
 export COSIGN_PUBLIC_KEY

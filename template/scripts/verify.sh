@@ -13,13 +13,13 @@ quiet() {
   fi
 }
 if [ -n "${COSIGN_PUBLIC_KEY:-}" ]; then
-  quiet cosign verify --key "$COSIGN_PUBLIC_KEY" --insecure-ignore-tlog=true "$image"
-  quiet cosign verify-attestation --key "$COSIGN_PUBLIC_KEY" --type custom --insecure-ignore-tlog=true "$image"
+  quiet cosign verify --timeout=15m --key "$COSIGN_PUBLIC_KEY" --insecure-ignore-tlog=true "$image"
+  quiet cosign verify-attestation --timeout=15m --key "$COSIGN_PUBLIC_KEY" --type custom --insecure-ignore-tlog=true "$image"
 else
   : "${GITHUB_REPOSITORY:?set GITHUB_REPOSITORY or COSIGN_PUBLIC_KEY}"
   identity="^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/ci.yml@.*$"
   issuer="https://token.actions.githubusercontent.com"
-  quiet cosign verify --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$image"
-  quiet cosign verify-attestation --type custom --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$image"
+  quiet cosign verify --timeout=15m --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$image"
+  quiet cosign verify-attestation --timeout=15m --type custom --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$image"
 fi
 echo "verified: $image"
