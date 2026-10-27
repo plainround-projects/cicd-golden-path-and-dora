@@ -11,9 +11,10 @@ services:
     # -h 127.0.0.1: the image first starts a temporary server that listens on the socket only; TCP answers when the real one is up
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
+      interval: 5s
+      timeout: 20s
+      retries: 30
+      start_period: 10s
     tmpfs:
       - /var/lib/postgresql/data
 
@@ -23,6 +24,7 @@ services:
       - "127.0.0.1:${REGISTRY_PORT:-55061}:5000"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:5000/v2/"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
+      interval: 5s
+      timeout: 20s
+      retries: 30
+      start_period: 10s
