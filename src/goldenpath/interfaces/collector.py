@@ -72,7 +72,14 @@ def collector_server(port: int, sink: EventSink, token: str, clock: Any = None) 
             except (json.JSONDecodeError, InvalidEventError, TypeError, AttributeError) as error:
                 self._reply(400, {"error": str(error)})
                 return
-            self._reply(202, {"accepted": record(sink, events), "received": len(events)})
+            try:
+                accepted = record(sink, events)
+            except (
+                Exception
+            ):  # the store is down or slow: say so, so the pipeline step can retry; never crash the handler
+                self._reply(503, {"error": "the event store is unavailable, try again"})
+                return
+            self._reply(202, {"accepted": accepted, "received": len(events)})
 
         def log_message(self, format: str, *args: Any) -> None:
             """Silence the default access log."""

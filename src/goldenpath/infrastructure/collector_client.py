@@ -17,7 +17,7 @@ class CollectorError(RuntimeError):
 class CollectorEventSink:
     """An `EventSink` over HTTP. The token comes from the environment (`COLLECTOR_TOKEN`), never from code."""
 
-    def __init__(self, url: str, token: str, timeout_seconds: float = 5.0) -> None:
+    def __init__(self, url: str, token: str, timeout_seconds: float = 120.0) -> None:
         """`url` is the collector's base URL (http or https only)."""
         if not url.startswith(("http://", "https://")):
             raise ValueError(f"url must start with http:// or https://, got {url!r}")

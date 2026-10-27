@@ -9,7 +9,7 @@ import psycopg
 
 from goldenpath.domain.events import Event, EventType
 
-_CONNECT_TIMEOUT_SECONDS = 5
+_CONNECT_TIMEOUT_SECONDS = 60
 
 
 class PostgresEventStore:

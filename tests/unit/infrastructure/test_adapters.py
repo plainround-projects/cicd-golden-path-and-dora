@@ -263,3 +263,19 @@ def test_a_collector_with_no_token_configured_refuses_everything(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+class BrokenStore:
+    def append(self, events):
+        raise ConnectionError("database is down")
+
+
+def test_a_collector_whose_store_is_down_answers_503_instead_of_hanging():
+    server = collector_server(0, BrokenStore(), "t", clock=lambda: NOW)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        body = json.dumps({"service": "orders", "type": "commit", "ref": "a1"}).encode()
+        assert post(f"http://127.0.0.1:{server.server_address[1]}", body, token="t")[0] == 503
+    finally:
+        server.shutdown()
+        server.server_close()
