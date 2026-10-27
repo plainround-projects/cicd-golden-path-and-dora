@@ -151,8 +151,9 @@ def test_an_event_without_a_time_zone_is_refused():
 
 
 def test_a_refused_deployment_is_counted_as_refused_not_as_a_failed_deployment():
-    events = sample_events() + [
-        Event(parse_timestamp("2026-09-03T12:00"), "orders", EventType.FAILED, "d-unsigned", "signature")
+    events = [
+        *sample_events(),
+        Event(parse_timestamp("2026-09-03T12:00"), "orders", EventType.FAILED, "d-unsigned", "signature"),
     ]
     start, end = metrics.window_of(events)
     orders = metrics.compute(events, "orders", start, end)
