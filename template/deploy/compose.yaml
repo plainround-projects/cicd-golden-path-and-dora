@@ -3,6 +3,9 @@
 services:
   app:
     image: "${IMAGE_REF:?deploy only by digest, IMAGE_REF=registry/name@sha256:...}"
+    # The default bridge: no per-project network to create, so a busy Docker daemon (or one that has run out of
+    # address pools) can still start the service.
+    network_mode: bridge
     ports:
       - "127.0.0.1::8080"
     read_only: true
