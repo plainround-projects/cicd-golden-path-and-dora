@@ -8,6 +8,7 @@ A small internal platform for a pretend organization of three teams: one command
 | **Planned hours** | 14 |
 | **Level** | Advanced |
 | **Architecture** | [ARCHITECTURE.md](ARCHITECTURE.md), the contract in [docs/golden-path-contract.md](docs/golden-path-contract.md), decisions in [docs/adr](docs/adr) |
+| **Technology notes** | [tech/](tech/README.md): one beginner file per technology used here (31 files) |
 
 ## Prerequisites
 
