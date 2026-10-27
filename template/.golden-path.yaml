@@ -1,0 +1,4 @@
+# Which version of the golden path generated this repository.
+golden_path: v1
+platform_ref: __PLATFORM_REF__
+exceptions: []   # each: {control, reason, owner, expires: YYYY-MM-DD}; the platform tracks and expires them

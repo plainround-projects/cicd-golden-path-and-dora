@@ -1,0 +1,16 @@
+# The local "production": the verified digest, run by compose. Replace with the platform's delivery path
+# (GitOps and a canary, see the cicd-canary-with-rollback project) when the service moves to a cluster.
+services:
+  app:
+    image: "${IMAGE_REF:?deploy only by digest, IMAGE_REF=registry/name@sha256:...}"
+    ports:
+      - "127.0.0.1::8080"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
+      interval: 5s
+      timeout: 20s
+      retries: 12
+      start_period: 5s

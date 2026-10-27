@@ -1,0 +1,6 @@
+# Written by the template. The owner must be a registered team, never a person.
+name: __NAME__
+owner: __OWNER__
+lifecycle: production
+runbook: __RUNBOOK__
+slo: availability 99.9% over 30 days
