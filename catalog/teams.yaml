@@ -1,0 +1,6 @@
+# The teams that may own a service. An owner must be one of these: a real team, never a person.
+teams:
+  - team-orders
+  - team-billing
+  - team-search
+  - team-platform
