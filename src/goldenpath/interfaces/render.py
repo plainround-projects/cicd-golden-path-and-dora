@@ -22,6 +22,7 @@ def metrics_table(rows: Sequence[ServiceMetrics], weekly: bool = False) -> str:
         "batch",
         "empty",
         "open",
+        "refused",
     ]
     body = []
     for row in rows:
@@ -35,6 +36,7 @@ def metrics_table(rows: Sequence[ServiceMetrics], weekly: bool = False) -> str:
                 _fmt(row.median_batch_size, "", 1),
                 str(row.empty_deploys),
                 str(row.open_failures),
+                str(row.refused),
             ]
         )
     widths = [max(len(line[index]) for line in [header, *body]) for index in range(len(header))]

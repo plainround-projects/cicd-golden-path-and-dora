@@ -149,3 +149,12 @@ def test_the_summary_and_the_trace_read_the_store():
     assert row.median_lead_time_hours == 5.0
     assert measure.trace(store, "orders", "a1").hours == 5.0
     assert [index for index, _ in measure.per_week(store)] == [1]
+
+
+def test_the_lessons_sample_services_are_left_out_of_a_summary_unless_asked_for():
+    store = MemoryStore()
+    when = datetime(2026, 9, 1, 9, tzinfo=UTC)
+    record(store, [Event(when, "sample-orders", EventType.COMMIT, "a1"), Event(when, "orders", EventType.COMMIT, "o1")])
+    assert [row.service for row in measure.summary(store)] == ["orders"]
+    assert [row.service for row in measure.summary(store, include_samples=True)] == ["orders", "sample-orders"]
+    assert [row.service for _, rows in measure.per_week(store) for row in rows] == ["orders"]

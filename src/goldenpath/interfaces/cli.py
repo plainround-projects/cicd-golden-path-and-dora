@@ -69,6 +69,9 @@ def build_parser() -> argparse.ArgumentParser:
     metrics = commands.add_parser("metrics", help="the four DORA metrics per service")
     metrics.add_argument("--csv", type=Path, help="read events from a CSV file instead of the database")
     metrics.add_argument("--weekly", action="store_true", help="one table per week")
+    metrics.add_argument(
+        "--include-samples", action="store_true", help="also measure the sample-* services of sql/002_seed.sql"
+    )
     trace = commands.add_parser("trace", help="trace one lead time back to its commit and deployment events")
     trace.add_argument("service")
     trace.add_argument("commit")
@@ -242,10 +245,10 @@ def _dispatch(args: argparse.Namespace, settings: Settings) -> int:
         case "metrics":
             reader = _store(settings, args.csv)
             if args.weekly:
-                for index, rows in measure.per_week(reader):
+                for index, rows in measure.per_week(reader, args.include_samples):
                     print(f"\nweek {index}\n{metrics_table(rows, weekly=True)}")
             else:
-                print(metrics_table(measure.summary(reader)))
+                print(metrics_table(measure.summary(reader, include_samples=args.include_samples)))
             return EXIT_OK
         case "trace":
             lead = measure.trace(_store(settings, args.csv), args.service, args.commit)

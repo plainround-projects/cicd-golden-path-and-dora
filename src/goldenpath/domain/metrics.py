@@ -35,6 +35,7 @@ class ServiceMetrics:
     median_recovery_minutes: float | None
     median_batch_size: float | None
     open_failures: int
+    refused: int  # deployments refused before anything ran (an unsigned image): failed events with detail "signature"
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +109,11 @@ def compute(events: Sequence[Event], service: str, start: datetime, end: datetim
         median_recovery_minutes=_median(recovery_minutes),
         median_batch_size=_median([float(len(parse_deploy_ref(event.ref).commits)) for event in real]),
         open_failures=open_failures,
+        refused=sum(
+            1
+            for event in own
+            if event.type is EventType.FAILED and event.detail == "signature" and start <= event.ts < end
+        ),
     )
 
 

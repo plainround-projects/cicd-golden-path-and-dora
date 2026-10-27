@@ -148,3 +148,13 @@ def test_an_event_that_cannot_be_placed_on_a_timeline_is_refused(service, kind, 
 def test_an_event_without_a_time_zone_is_refused():
     with pytest.raises(InvalidEventError, match="time zone"):
         Event(datetime(2026, 9, 1), "orders", EventType.COMMIT, "a1")
+
+
+def test_a_refused_deployment_is_counted_as_refused_not_as_a_failed_deployment():
+    events = sample_events() + [
+        Event(parse_timestamp("2026-09-03T12:00"), "orders", EventType.FAILED, "d-unsigned", "signature")
+    ]
+    start, end = metrics.window_of(events)
+    orders = metrics.compute(events, "orders", start, end)
+    assert orders.refused == 1
+    assert orders.change_fail_rate == 0.25
