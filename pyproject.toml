@@ -1,0 +1,89 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cicd-golden-path-and-dora"
+version = "0.1.0"
+description = "A golden-path template that gives a new service a secure pipeline on day one, and the DORA metrics computed from the events that pipeline records."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Sumit Srivastava" }]
+dependencies = ["psycopg[binary]>=3.2,<4", "pyyaml>=6"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<10",
+    "pytest-cov>=5",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "import-linter>=2.0",
+    "pip-audit>=2.7",
+    "types-PyYAML>=6",
+]
+
+[project.scripts]
+goldenpath = "goldenpath.interfaces.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = ["template"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "N", "C4", "RUF", "PT", "S", "D100", "D101", "D103", "D104"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D", "S"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: needs PostgreSQL from docker-compose.yml (make up)",
+    "e2e: the golden path end to end with Docker, a local registry and cosign (make up first)",
+]
+
+[tool.coverage.run]
+source = ["goldenpath"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.importlinter]
+root_packages = ["goldenpath"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Layers: interfaces -> infrastructure -> application -> domain, never upward"
+type = "layers"
+layers = [
+    "goldenpath.interfaces",
+    "goldenpath.infrastructure",
+    "goldenpath.application",
+    "goldenpath.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain and application know nothing about PostgreSQL, YAML, HTTP or subprocesses"
+type = "forbidden"
+source_modules = ["goldenpath.domain", "goldenpath.application"]
+forbidden_modules = ["psycopg", "yaml", "subprocess", "http", "urllib"]
