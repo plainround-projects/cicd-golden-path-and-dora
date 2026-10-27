@@ -33,12 +33,22 @@ class StepResult:
     output: str
 
 
-def _run(
-    argv: Sequence[str], cwd: Path, env: Mapping[str, str], timeout: float = 900
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(  # noqa: S603
-        list(argv), cwd=cwd, env={**os.environ, **env}, capture_output=True, text=True, timeout=timeout, check=False
-    )
+STEP_TIMEOUT_SECONDS = 3600  # a step normally takes seconds; a machine under heavy load can take many minutes
+
+
+def _run(argv: Sequence[str], cwd: Path, env: Mapping[str, str]) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(  # noqa: S603
+            list(argv),
+            cwd=cwd,
+            env={**os.environ, **env},
+            capture_output=True,
+            text=True,
+            timeout=STEP_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise StepFailedError(" ".join(argv), f"timed out after {STEP_TIMEOUT_SECONDS} seconds") from None
 
 
 def run_steps(
