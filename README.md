@@ -10,6 +10,24 @@ A small internal platform for a pretend organization of three teams: one command
 | **Architecture** | [ARCHITECTURE.md](ARCHITECTURE.md), the contract in [docs/golden-path-contract.md](docs/golden-path-contract.md), decisions in [docs/adr](docs/adr) |
 | **Technology notes** | [tech/](tech/README.md): one beginner file per technology used here (31 files) |
 
+## Architecture
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture-dark.svg">
+  <img alt="A product team runs goldenpath new-service; the generator renders the template and audits it, registers the catalog entry and publishes a repo whose secure pipeline signs and verifies the image, and the collector stores the commit, deploy and failed events from which the DORA metrics are computed." src="docs/diagrams/architecture.svg">
+</picture>
+
+Notice that the contract is checked by code at generation and again at deploy, and that the only input of the metrics is the event store.
+
+## How one run flows
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/flow-dark.svg">
+  <img alt="One goldenpath new-service validates, renders, audits and publishes a repo, posts commit events, runs the pipeline to a deploy event, prints the stopwatch, and the metrics are computed from the stored events." src="docs/diagrams/flow.svg">
+</picture>
+
+The run ends with the stopwatch at orders 83 s; the amber rows show a finding that stops the command and an unsigned image that is refused and recorded as a failed event.
+
 ## Prerequisites
 
 | Tool | Version | Used for |

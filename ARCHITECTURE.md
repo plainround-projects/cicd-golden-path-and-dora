@@ -26,6 +26,8 @@ The golden path itself follows the same idea in miniature: the contract is a set
 
 ## Data flow
 
+Drawn versions of this figure and of the walk-through: [the architecture](docs/diagrams/architecture.svg) and [one run](docs/diagrams/flow.svg).
+
 ```mermaid
 flowchart LR
     team["Product team<br/>goldenpath new-service orders team-orders"] --> tpl["Template<br/>template/ + contract"]
