@@ -49,7 +49,7 @@ flowchart LR
 1. **Validate.** `orders` and `team-orders` are checked against the catalog rules; a person as owner (`alice`) or an unregistered team stops here.
 2. **Render.** The template folder is copied with the four placeholders replaced in every text file; file modes are kept so scripts stay executable.
 3. **Audit.** `RepositoryAuditor` reads the new folder: the workflow must sign, verify, ask for an identity token in the release job only, keep read-only top-level permissions and pin every action to a full commit SHA; `protection.json` must require the three checks strictly for administrators; the catalog entry must be valid; no file may contain a stored cloud key, a private key, a token or a `secrets.*_PASSWORD`-style reference; no placeholder may remain. Any finding stops the command before anything is published.
-4. **Publish.** `git init`, one commit, a bare remote, a push; the catalog entry is written.
+4. **Register and publish.** The catalog entry is written first; then `git init`, one commit, a bare remote, a push.
 5. **Commit events.** The command posts a `commit` event for each commit to the collector (the pipeline's clock).
 6. **The pipeline runs.** `make lint`, `make test`, `make image` (build once, push, keep the digest), `make sign`, `make attest`, `make verify`, `make deploy`, each timed. `deploy.sh` verifies the signature and the attestation again; only then does compose run the digest, and a `deploy` event with the deployment id and its commits (`orders-d1:abc1234`) goes to the collector.
 7. **The stopwatch.** The command prints where the seconds went and the total from the command to the first production deployment (the lesson's limit is 30 minutes).
